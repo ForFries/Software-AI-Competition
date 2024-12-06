@@ -1,0 +1,82 @@
+/* 全局样式 */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #202020;
+    color: #ffffff;
+  }
+  
+  /* App 主容器 */
+  .app {
+    padding: 20px;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  
+  /* 单个块容器 */
+  .block-wrapper {
+    position: relative;
+    margin-bottom: 20px;
+  }
+  
+  /* 标题和内容块样式 */
+  .block {
+    padding: 10px;
+    border: 2px solid #444;
+    border-radius: 8px;
+    background-color: #2a2a2a;
+  }
+  
+  /* 标题输入框 */
+  .title-input {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #ffffff;
+    background-color: transparent;
+    border: none;
+    width: 100%;
+    outline: none;
+  }
+  
+  /* 内容输入框 */
+  .content-input {
+    font-size: 1rem;
+    color: #ffffff;
+    background-color: transparent;
+    border: none;
+    width: 100%;
+    outline: none;
+    height: 60px;
+    resize: none;
+  }
+  
+  /* 添加按钮容器 */
+  .add-button {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+  }
+  
+  /* 添加按钮 */
+  .add-option {
+    background-color: #444;
+    color: #ffffff;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    margin: 0 5px;
+    transition: background-color 0.3s;
+  }
+  
+  .add-option:hover {
+    background-color: #666;
+  }
+  
+  /* 初始添加按钮样式 */
+  .initial-add {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+  }
+  
