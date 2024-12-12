@@ -1,3 +1,21 @@
+// 这段代码定义了一个可自定义的 Button 组件，使用了 React 和 Radix UI。以下是各部分的关键解析：
+
+// 导入模块：
+
+// React：用于构建组件。
+// Slot：来自 @radix-ui/react-slot，可以让 Button 组件作为其他组件的容器进行渲染（通过传递 asChild 属性）。
+// cva 和 VariantProps：来自 class-variance-authority，用于管理和定义组件样式的变种（variants）。
+// cn：一个工具函数，可能是用来组合和处理 class 名的。
+// 按钮样式变种 (buttonVariants)： 使用 cva 函数定义了一个基础的样式，并提供了不同的 variant 和 size 变种。每个变种对应不同的样式设置。例如：
+
+// variant: 定义了按钮的不同外观（如 default、destructive、outline、secondary、ghost、link）。
+// size: 定义了按钮的不同尺寸（如 default、sm、lg、icon）。
+// Button 组件：
+
+// Button 是一个接受 variant 和 size 属性的按钮组件，它通过 class-variance-authority 来动态设置样式。
+// 通过 asChild 属性可以将 Button 渲染为其他组件而不是 <button> 标签，这在需要与其他 UI 组件集成时非常有用。
+// cn 函数将样式类名合并到一起，以便按钮根据传递的 variant、size 和 className 进行样式调整。
+// forwardRef： Button 使用了 React.forwardRef，允许你通过 ref 访问底层的 button 元素。这对于一些需要访问 DOM 元素的场景（如焦点管理或动画）非常有用。
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
@@ -30,7 +48,7 @@ const buttonVariants = cva(
     defaultVariants: {
       variant: "default",
       size: "default",
-    },
+    }
   }
 )
 

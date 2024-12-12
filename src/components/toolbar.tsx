@@ -34,10 +34,10 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ blockId, onTog
     const applyStyle = (tag: string, className?: string) => {
         const selection = window.getSelection()
         if (!selection || selection.rangeCount === 0) return
-
         const range = selection.getRangeAt(0)
         const selectedContent = range.extractContents()
         const wrapper = document.createElement(tag)
+        console.log('Selection range:', selection);
 
         if (className) {
             wrapper.className = className
@@ -109,13 +109,6 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ blockId, onTog
                     removeStyle('em')
                 } else {
                     applyStyle('em')
-                }
-                break
-            case 'code':
-                if (parentElement?.nodeName === 'CODE') {
-                    removeStyle('code')
-                } else {
-                    applyStyle('code', 'bg-gray-100 px-1 rounded font-mono')
                 }
                 break
             default:

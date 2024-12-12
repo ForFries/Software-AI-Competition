@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react'
 import { Block } from './block'
 import { FloatingToolbar } from './toolbar'
@@ -8,105 +9,112 @@ import { v4 as uuidv4 } from 'uuid'
 import { Button } from "@/components/ui/button"
 import { Plus } from 'lucide-react'
 
+interface BlockData {
+    id: string;
+    type: string;
+    content: string;
+}
+
 export function Editor() {
-    const [blocks, setBlocks] = useState(() => {
-        const savedBlocks = localStorage.getItem('notionLikeBlocks')
+    const [blocks, setBlocks] = useState<BlockData[]>(() => {
+        const savedBlocks = localStorage.getItem('notionLikeBlocks');
         return savedBlocks ? JSON.parse(savedBlocks) : [
             { id: uuidv4(), type: 'heading-1', content: 'Welcome to Your Notion-like Editor' },
             { id: uuidv4(), type: 'paragraph', content: 'Start typing or use "/" for commands' },
-        ]
-    })
+        ];
+    });
 
-    const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
-    const [showSlashMenu, setShowSlashMenu] = useState(false)
-    const [slashMenuBlockId, setSlashMenuBlockId] = useState<string | null>(null)
-    const [slashMenuPosition, setSlashMenuPosition] = useState({ x: 0, y: 0 })
+    const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+    const [showSlashMenu, setShowSlashMenu] = useState<boolean>(false);
+    const [slashMenuBlockId, setSlashMenuBlockId] = useState<string | null>(null);
+    const [slashMenuPosition, setSlashMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
     useEffect(() => {
-        localStorage.setItem('notionLikeBlocks', JSON.stringify(blocks))
-    }, [blocks])
+        localStorage.setItem('notionLikeBlocks', JSON.stringify(blocks));
+    }, [blocks]);
 
     const handleBlockChange = useCallback((id: string, content: string) => {
         setBlocks(blocks => blocks.map(block =>
             block.id === id ? { ...block, content } : block
-        ))
-    }, [])
+        ));
+    }, []);
 
     const handleBlockFocus = useCallback((id: string) => {
-        setSelectedBlockId(id)
-    }, [])
+        setSelectedBlockId(id);
+        console.log(id);
+    }, []);
 
-    const handleBlockBlur = useCallback(() => {
-        setSelectedBlockId(null)
-    }, [])
+    const handleBlockBlur = useCallback((id: string|null) => {
+        if(id==null)
+        {
+            setSelectedBlockId(null);
+            console.log('no id');
+        }
+    }, []);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent, blockId: string) => {
         if (e.key === '/') {
-            const rect = (e.target as HTMLElement).getBoundingClientRect()
-            setSlashMenuPosition({ x: rect.left, y: rect.bottom })
-            setShowSlashMenu(true)
-            setSlashMenuBlockId(blockId)
+            const rect = (e.target as HTMLElement).getBoundingClientRect();
+            setSlashMenuPosition({ x: rect.left, y: rect.bottom });
+            setShowSlashMenu(true);
+            setSlashMenuBlockId(blockId);
         } else if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            const newBlock = { id: uuidv4(), type: 'paragraph', content: '' }
+            e.preventDefault();
+            const newBlock: BlockData = { id: uuidv4(), type: 'paragraph', content: '' };
             setBlocks(blocks => {
-                const index = blocks.findIndex(block => block.id === blockId)
-                return [...blocks.slice(0, index + 1), newBlock, ...blocks.slice(index + 1)]
-            })
+                const index = blocks.findIndex(block => block.id === blockId);
+                return [...blocks.slice(0, index + 1), newBlock, ...blocks.slice(index + 1)];
+            });
         } else if (e.key === 'Backspace' && (e.target as HTMLElement).textContent === '') {
-            e.preventDefault()
-            deleteBlock(blockId)
+            e.preventDefault();
+            deleteBlock(blockId);
         }
-    }, [])
+    }, []);
 
     const handleSlashCommand = useCallback((type: string) => {
         if (slashMenuBlockId) {
-            // 替换现有的 block
             setBlocks(blocks => blocks.map(block =>
                 block.id === slashMenuBlockId
                     ? { ...block, type, content: '' }
                     : block
-            ))
+            ));
         } else {
-            // 如果没有指定 block，则添加新的
-            addBlock(type)
+            addBlock(type);
         }
-        setShowSlashMenu(false)
-        setSlashMenuBlockId(null)
-    }, [slashMenuBlockId])
+        setShowSlashMenu(false);
+        setSlashMenuBlockId(null);
+    }, [slashMenuBlockId]);
 
     const addBlock = useCallback((type: string, content: string = '') => {
-        const newBlock = { id: uuidv4(), type, content }
-        setBlocks(blocks => [...blocks, newBlock])
-        setShowSlashMenu(false)
-    }, [])
+        const newBlock: BlockData = { id: uuidv4(), type, content };
+        setBlocks(blocks => [...blocks, newBlock]);
+        setShowSlashMenu(false);
+        console.log(newBlock.id);
+    }, []);
 
     const moveBlock = useCallback((dragIndex: number, hoverIndex: number) => {
         setBlocks((prevBlocks) => {
             const newBlocks = [...prevBlocks];
             const dragBlock = newBlocks[dragIndex];
 
-            // Remove the dragged item
             newBlocks.splice(dragIndex, 1);
-            // Insert it at the new position
             newBlocks.splice(hoverIndex, 0, dragBlock);
 
             return newBlocks;
         });
     }, []);
 
-
     const deleteBlock = useCallback((id: string) => {
-        setBlocks(blocks => blocks.filter(block => block.id !== id))
-    }, [])
+        setBlocks(blocks => blocks.filter(block => block.id !== id));
+    }, []);
 
     const toggleBlockType = useCallback((id: string, newType: string) => {
         setBlocks(blocks => blocks.map(block =>
             block.id === id
                 ? { ...block, type: newType }
                 : block
-        ))
-    }, [])
+        ));
+    }, []);
 
     return (
         <DndProvider backend={HTML5Backend} options={{ enableMouseEvents: true }}>
@@ -145,12 +153,12 @@ export function Editor() {
                         position={slashMenuPosition}
                         onSelect={handleSlashCommand}
                         onClose={() => {
-                            setShowSlashMenu(false)
-                            setSlashMenuBlockId(null)
+                            setShowSlashMenu(false);
+                            setSlashMenuBlockId(null);
                         }}
                     />
                 )}
             </div>
         </DndProvider>
-    )
+    );
 }

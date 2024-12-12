@@ -9,7 +9,7 @@ interface BlockProps {
     content: string
     onChange: (id: string, content: string) => void
     onFocus: (id: string) => void
-    onBlur: () => void
+    onBlur: (id: string|null) => void
     onKeyDown: (e: React.KeyboardEvent, id: string) => void
     onDelete: (id: string) => void
     onToggleType: (id: string, type: string) => void
@@ -163,7 +163,7 @@ export const Block: React.FC<BlockProps> = ({
                 )}
                 onInput={(e) => onChange(id, e.currentTarget.innerHTML || '')}
                 onFocus={() => onFocus(id)}
-                onBlur={onBlur}
+                onBlur={()=>onBlur(id)}
                 onKeyDown={(e) => onKeyDown(e, id)}
             />
             {isHovered && (
