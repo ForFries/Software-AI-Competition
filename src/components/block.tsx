@@ -105,7 +105,7 @@ export const Block: React.FC<BlockProps> = ({
         },
     })
 
-    // Initialize drag preview
+    // Initialize drag preview         
     useEffect(() => {
         dragPreview(drop(ref))
     }, [dragPreview, drop])
@@ -153,6 +153,7 @@ export const Block: React.FC<BlockProps> = ({
                     <GripVertical className="h-4 w-4 text-gray-400" />
                 </div>
             )}
+            
             <div
                 ref={contentEditableRef}
                 contentEditable
@@ -165,8 +166,11 @@ export const Block: React.FC<BlockProps> = ({
                 onFocus={() => onFocus(id)}
                 onBlur={()=>onBlur(id)}
                 onKeyDown={(e) => onKeyDown(e, id)}
-            />
-            {isHovered && (
+            >
+            {content=='Welcome to Your Notion-like Editor'&&content}
+            {content=='Start typing or use "/" for commands'&&content}
+            </div>
+                {isHovered && (
                 <button
                     className="absolute top-1 right-1 opacity-50 hover:opacity-100"
                     onClick={() => onDelete(id)}
@@ -174,6 +178,7 @@ export const Block: React.FC<BlockProps> = ({
                     <Trash2 className="h-4 w-4 text-gray-400 hover:text-gray-600" />
                 </button>
             )}
+            
         </div>
     )
 }

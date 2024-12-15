@@ -14,11 +14,11 @@ interface BlockData {
     type: string;
     content: string;
 }
-
+//savedBlocks ? JSON.parse(savedBlocks) :
 export function Editor() {
     const [blocks, setBlocks] = useState<BlockData[]>(() => {
-        const savedBlocks = localStorage.getItem('notionLikeBlocks');
-        return savedBlocks ? JSON.parse(savedBlocks) : [
+        // const savedBlocks = localStorage.getItem('notionLikeBlocks');
+        return  [
             { id: uuidv4(), type: 'heading-1', content: 'Welcome to Your Notion-like Editor' },
             { id: uuidv4(), type: 'paragraph', content: 'Start typing or use "/" for commands' },
         ];
@@ -29,10 +29,12 @@ export function Editor() {
     const [slashMenuBlockId, setSlashMenuBlockId] = useState<string | null>(null);
     const [slashMenuPosition, setSlashMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
+    // useEffect(() => {
+    //     localStorage.setItem('notionLikeBlocks', JSON.stringify(blocks));
+    // }, [blocks]);
     useEffect(() => {
-        localStorage.setItem('notionLikeBlocks', JSON.stringify(blocks));
+        console.log("Updated blocks:", blocks);  // 每次 blocks 更新时都会打印
     }, [blocks]);
-
     const handleBlockChange = useCallback((id: string, content: string) => {
         setBlocks(blocks => blocks.map(block =>
             block.id === id ? { ...block, content } : block
@@ -41,14 +43,14 @@ export function Editor() {
 
     const handleBlockFocus = useCallback((id: string) => {
         setSelectedBlockId(id);
-        console.log(id);
+        // console.log(id);
     }, []);
 
     const handleBlockBlur = useCallback((id: string|null) => {
         if(id==null)
         {
             setSelectedBlockId(null);
-            console.log('no id');
+            // console.log('no id');
         }
     }, []);
 
@@ -70,7 +72,15 @@ export function Editor() {
             deleteBlock(blockId);
         }
     }, []);
-
+    const addBlock = useCallback((type: string, content: string = '') => {
+        const newBlock: BlockData = { id: uuidv4(), type, content };
+        setBlocks(blocks => {
+            console.log('Previous blocks:', blocks);  // 打印当前的 blocks 数组
+            return [...blocks, newBlock];
+        });
+        setShowSlashMenu(false);
+        // console.log('Updated blocks:', blocks);  // 这会打印当前的 blocks，但因为 setBlocks 是异步的，所以这里的值不会被更新
+    }, []);    
     const handleSlashCommand = useCallback((type: string) => {
         if (slashMenuBlockId) {
             setBlocks(blocks => blocks.map(block =>
@@ -85,12 +95,7 @@ export function Editor() {
         setSlashMenuBlockId(null);
     }, [slashMenuBlockId]);
 
-    const addBlock = useCallback((type: string, content: string = '') => {
-        const newBlock: BlockData = { id: uuidv4(), type, content };
-        setBlocks(blocks => [...blocks, newBlock]);
-        setShowSlashMenu(false);
-        console.log(newBlock.id);
-    }, []);
+    
 
     const moveBlock = useCallback((dragIndex: number, hoverIndex: number) => {
         setBlocks((prevBlocks) => {
@@ -137,7 +142,7 @@ export function Editor() {
                     variant="ghost"
                     size="sm"
                     className="mt-4 text-gray-500 hover:text-gray-700"
-                    onClick={() => addBlock('paragraph')}
+                    onClick={() => addBlock('paragraph','')}
                 >
                     <Plus className="h-4 w-4 mr-2" />
                     Add a block
