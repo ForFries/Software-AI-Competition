@@ -8,8 +8,7 @@ import { HTML5Backend } from 'react-dnd-html5-backend'
 import { v4 as uuidv4 } from 'uuid'
 import { Button } from "@/components/ui/button"
 import { Plus } from 'lucide-react'
-import { useStompClient } from '../hooks/useStompClient'
-
+import * as Y from 'yjs';
 interface BlockData {
     id: string;
     type: string;
@@ -24,24 +23,63 @@ export function Editor() {
             { id: uuidv4(), type: 'paragraph', content: 'Start typing or use "/" for commands' },
         ];
     });
-
+    const [ydoc] = useState(() => new Y.Doc());
     const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
     const [showSlashMenu, setShowSlashMenu] = useState<boolean>(false);
     const [slashMenuBlockId, setSlashMenuBlockId] = useState<string | null>(null);
     const [slashMenuPosition, setSlashMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-
+    useEffect(() => {
+        const blocksArray = ydoc.getArray<string>('blocksArray');
+        const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
+        const initialBlocks = [
+            { id: uuidv4(), type: 'heading-1', content: 'Welcome to Your Notion-like Editor' },
+            { id: uuidv4(), type: 'paragraph', content: 'Start typing or use "/" for commands' },
+        ];
+        if (blocksArray.length === 0) {
+            initialBlocks.forEach(block => {
+                blocksArray.push([block.id]);
+                const newYmap:Y.Map<string> =new Y.Map();
+                newYmap.set('id',block.id);
+                newYmap.set('type',block.type);
+                newYmap.set('content',block.content);
+                blocksData.set(block.id,newYmap);
+            });
+        }
+        blocksArray.observe(event => {
+            const newBlocks: BlockData[] = [];
+            blocksArray.forEach((blockMap) => {
+            newBlocks.push({
+              id: blocksData.get(blockMap)!.get('id')!,
+              content: blocksData.get(blockMap)!.get('content')!,
+              type: blocksData.get(blockMap)!.get('type')!,
+            });
+          });
+          setBlocks(newBlocks);
+        });
+        //blocksArray变动时发生里面的函数
+        return () => {
+          ydoc.destroy();
+        };
+      }, []);
     // useEffect(() => {
     //     localStorage.setItem('notionLikeBlocks', JSON.stringify(blocks));
     // }, [blocks]);
-    useEffect(() => {
-        console.log("Updated blocks:", blocks);  // 每次 blocks 更新时都会打印
-    }, [blocks]);
+    // useEffect(() => {
+    //     console.log("Updated blocks:", blocks);  // 每次 blocks 更新时都会打印
+    // }, [blocks]);
+    //处理内容content改变的函数
     const handleBlockChange = useCallback((id: string, content: string) => {
-        setBlocks(blocks => blocks.map(block =>
-            block.id === id ? { ...block, content } : block
-        ));
+        // setBlocks(blocks => blocks.map(block =>
+        //     block.id === id ? { ...block, content } : block
+        // ));
+        const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
+        blocksData.forEach((blockMap) => {
+          if (blockMap.get('id') === id) {
+            blockMap.set('content', content);
+          }
+        });
     }, []);
-
+    
     const handleBlockFocus = useCallback((id: string) => {
         setSelectedBlockId(id);
         // console.log(id);
@@ -63,25 +101,57 @@ export function Editor() {
             setSlashMenuBlockId(blockId);
         } else if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            const newBlock: BlockData = { id: uuidv4(), type: 'paragraph', content: '' };
-            setBlocks(blocks => {
-                const index = blocks.findIndex(block => block.id === blockId);
-                return [...blocks.slice(0, index + 1), newBlock, ...blocks.slice(index + 1)];
-            });
+            // const newBlock: BlockData = { id: uuidv4(), type: 'paragraph', content: '' };
+            // setBlocks(blocks => {
+            //     const index = blocks.findIndex(block => block.id === blockId);
+            //     return [...blocks.slice(0, index + 1), newBlock, ...blocks.slice(index + 1)];
+            // });
+            const blocksArray = ydoc.getArray<string>('blocksArray');
+            const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
+            const newBlockMap: Y.Map<string> = new Y.Map();
+            newBlockMap.set('id', uuidv4());
+            newBlockMap.set('content', '');
+            newBlockMap.set('type', 'paragraph');
+            // 查找目标 block 的位置
+            let targetIndex = -1;
+            blocksArray.forEach((blockMap, index) => {
+            if (blockMap === blockId) {
+                targetIndex = index;
+            }
+        });
+
+        // 如果找到了目标 block，就插入新的 block
+        if (targetIndex !== -1) {
+            blocksArray.insert(targetIndex + 1, [newBlockMap.get('id')!]); // 在目标块后面插入
+            blocksData.set(newBlockMap.get('id')!, newBlockMap);
+        } else {
+            console.log("Block with id " + blockId + " not found.");
+        }
+
+
         } else if (e.key === 'Backspace' && (e.target as HTMLElement).textContent === '') {
             e.preventDefault();
             deleteBlock(blockId);
         }
     }, []);
-    const addBlock = useCallback((type: string, content: string = '') => {
-        const newBlock: BlockData = { id: uuidv4(), type, content };
-        setBlocks(blocks => {
-            console.log('Previous blocks:', blocks);  // 打印当前的 blocks 数组
-            return [...blocks, newBlock];
-        });
+    const addBlock = useCallback((type: string) => {
+        // const newBlock: BlockData = { id: uuidv4(), type, content };
+        // setBlocks(blocks => {
+        //     console.log('Previous blocks:', blocks);  // 打印当前的 blocks 数组
+        //     return [...blocks, newBlock];
+        // });
         setShowSlashMenu(false);
         // console.log('Updated blocks:', blocks);  // 这会打印当前的 blocks，但因为 setBlocks 是异步的，所以这里的值不会被更新
-    }, []);    
+        const blocksArray = ydoc.getArray<string>('blocksArray');
+        const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
+        const newBlockMap: Y.Map<string> = new Y.Map();
+        newBlockMap.set('id', uuidv4());
+        newBlockMap.set('content', '');
+        newBlockMap.set('type', type);
+        blocksArray.push([newBlockMap.get('id')!]);
+        blocksData.set(newBlockMap.get('id')!, newBlockMap);
+    }, []); 
+
     const handleSlashCommand = useCallback((type: string) => {
         if (slashMenuBlockId) {
             setBlocks(blocks => blocks.map(block =>
@@ -96,22 +166,27 @@ export function Editor() {
         setSlashMenuBlockId(null);
     }, [slashMenuBlockId]);
 
+    const moveBlock = useCallback((dragIndex: number, hoverIndex: number) => {
+        const blocksArray = ydoc.getArray<string>('blocksArray');
+        const DragBlockID:string = blocksArray.get(dragIndex).toString();
+        const HoverBlockID:string = blocksArray.get(hoverIndex).toString();
+        dragIndex ===0? blocksArray.unshift([DragBlockID]): blocksArray.insert(dragIndex-1,[DragBlockID]);
+        hoverIndex ===0? blocksArray.unshift([HoverBlockID]): blocksArray.insert(hoverIndex-1,[HoverBlockID]);
+    }, []);
     
 
-    const moveBlock = useCallback((dragIndex: number, hoverIndex: number) => {
-        setBlocks((prevBlocks) => {
-            const newBlocks = [...prevBlocks];
-            const dragBlock = newBlocks[dragIndex];
-
-            newBlocks.splice(dragIndex, 1);
-            newBlocks.splice(hoverIndex, 0, dragBlock);
-
-            return newBlocks;
-        });
-    }, []);
-
     const deleteBlock = useCallback((id: string) => {
-        setBlocks(blocks => blocks.filter(block => block.id !== id));
+        console.log(id);
+        const blocksArray = ydoc.getArray<string>('blocksArray');
+        const blocksData:Y.Map<Y.Map<string>> = ydoc.getMap<Y.Map<string>>('blocksData');
+        blocksArray.forEach((blockMap, indexArray) => {
+        if (blockMap === id) {
+            console.log('delete success');
+            blocksArray.delete(indexArray, 1);
+            blocksData.delete(blockMap);
+        }
+        console.log(blockMap);
+    });
     }, []);
 
     const toggleBlockType = useCallback((id: string, newType: string) => {
@@ -143,7 +218,7 @@ export function Editor() {
                     variant="ghost"
                     size="sm"
                     className="mt-4 text-gray-500 hover:text-gray-700"
-                    onClick={() => addBlock('paragraph','')}
+                    onClick={() => addBlock('paragraph')}
                 >
                     <Plus className="h-4 w-4 mr-2" />
                     Add a block

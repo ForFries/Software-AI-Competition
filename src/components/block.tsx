@@ -14,13 +14,13 @@ interface BlockProps {
     onDelete: (id: string) => void
     onToggleType: (id: string, type: string) => void
     index: number
-    moveBlock: (dragIndex: number, hoverIndex: number) => void
+    moveBlock: (DragIndex: number, HoverIndex:  number) => void
 }
 
 interface DragItem {
     id: string
-    index: number
     type: string
+    index:number
 }
 
 export const Block: React.FC<BlockProps> = ({
@@ -44,8 +44,8 @@ export const Block: React.FC<BlockProps> = ({
         type: 'BLOCK',
         item: (): DragItem => ({
             id,
+            type: 'BLOCK',
             index,
-            type: 'BLOCK'
         }),
         collect: (monitor) => ({
             isDragging: monitor.isDragging(),
@@ -61,47 +61,48 @@ export const Block: React.FC<BlockProps> = ({
             if (!ref.current) {
                 return
             }
-
+    
             const dragIndex = item.index
             const hoverIndex = index
-
+    
             // Don't replace items with themselves
             if (dragIndex === hoverIndex) {
                 return
             }
-
+    
             // Determine rectangle on screen
             const hoverBoundingRect = ref.current.getBoundingClientRect()
-
+    
             // Get vertical middle
             const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2
-
+    
             // Determine mouse position
             const clientOffset = monitor.getClientOffset()
             if (!clientOffset) {
                 return
             }
-
+    
             // Get pixels to the top
             const hoverClientY = clientOffset.y - hoverBoundingRect.top
-
+    
             // Only perform the move when the mouse has crossed half of the items height
             if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY) {
                 return
             }
-
+    
             if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) {
                 return
             }
-
-            // Time to actually perform the action
-            moveBlock(dragIndex, hoverIndex)
-
-            // Note: we're mutating the monitor item here!
-            // Generally it's better to avoid mutations,
-            // but it's good here for the sake of performance
-            // to avoid expensive index searches.
-            item.index = hoverIndex
+    
+            // Don't perform any move until mouse is dropped (this ensures we don't update prematurely)
+        },
+        drop: (item, monitor) => {
+            const dragIndex = item.index
+            const hoverIndex = index
+            // Only perform the move when the drag has ended (mouse is dropped)
+            if (dragIndex !== hoverIndex) {
+                moveBlock(dragIndex, hoverIndex)
+            }
         },
     })
 
