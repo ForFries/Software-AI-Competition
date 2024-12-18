@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect,useRef} from 'react'
 import { Block } from './block'
 import { FloatingToolbar } from './toolbar'
@@ -16,6 +15,12 @@ interface BlockData {
     content: string;
 }
 //savedBlocks ? JSON.parse(savedBlocks) :
+interface CursorState {
+  blockId: string;
+  offset: number;
+  userId: string;
+}
+
 export function Editor() {
     const [blocks, setBlocks] = useState<BlockData[]>(() => {
         // const savedBlocks = localStorage.getItem('notionLikeBlocks');
@@ -29,6 +34,46 @@ export function Editor() {
     const [showSlashMenu, setShowSlashMenu] = useState<boolean>(false);
     const [slashMenuBlockId, setSlashMenuBlockId] = useState<string | null>(null);
     const [slashMenuPosition, setSlashMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+    const [provider, setProvider] = useState<WebsocketProvider | null>(null);
+    const [awareness, setAwareness] = useState<any>(null);
+    const userId = useRef(uuidv4()); // 为每个用户生成唯一ID
+
+    useEffect(() => {
+        const wsProvider = new WebsocketProvider('ws://localhost:1234', 'my-room', ydoc);
+        const awareness = wsProvider.awareness;
+        
+        setProvider(wsProvider);
+        setAwareness(awareness);
+
+        // 初始化本地用户状态
+        awareness.setLocalState({
+            user: {
+                id: userId.current,
+                cursor: null
+            }
+        });
+
+        return () => {
+            wsProvider.destroy();
+            ydoc.destroy();
+        };
+    }, [ydoc]);
+
+    // 添加一个处理光标更新的函数
+    const handleCursorChange = useCallback((blockId: string, offset: number) => {
+        if (awareness) {
+            awareness.setLocalState({
+                user: {
+                    id: userId.current,
+                    cursor: {
+                        blockId,
+                        offset
+                    }
+                }
+            });
+        }
+    }, [awareness]);
+
     useEffect(() => {
         const blocksArray = ydoc.getArray<string>('blocksArray');
         const blocksData: Y.Map<Y.Map<string>> = ydoc.getMap<Y.Map<string>>('blocksData');
@@ -88,7 +133,7 @@ export function Editor() {
     //     localStorage.setItem('notionLikeBlocks', JSON.stringify(blocks));
     // }, [blocks]);
     // useEffect(() => {
-    //     console.log("Updated blocks:", blocks);  // 每次 blocks 更新时都会打印
+    //     console.log("Updated blocks:", blocks);  // 每 blocks 更新时都会打印
     // }, [blocks]);
     //处理内容content改变的函数
     const handleBlockChange = useCallback((id: string, content: string) => {
@@ -112,30 +157,54 @@ export function Editor() {
     
     const handleBlockFocus = useCallback((id: string) => {
         setSelectedBlockId(id);
-        // console.log(id);
-    }, []);
+        // 如果当前聚焦的块不是打开斜杠菜单的块，则关闭斜杠菜单
+        if (id !== slashMenuBlockId) {
+            setShowSlashMenu(false);
+            setSlashMenuBlockId(null);
+        }
+    }, [slashMenuBlockId]);
 
     const handleBlockBlur = useCallback((id: string|null) => {
-        if(id==null)
-        {
+        if(id == null) {
             setSelectedBlockId(null);
-            // console.log('no id');
         }
+        // 添加一个延时，因为我们需要确保新的焦点已经设置
+        setTimeout(() => {
+            // 检查新的焦点是否在斜杠菜单内
+            const activeElement = document.activeElement;
+            const slashMenuElement = document.querySelector('[role="menu"]');
+            if (slashMenuElement && !slashMenuElement.contains(activeElement)) {
+                setShowSlashMenu(false);
+                setSlashMenuBlockId(null);
+            }
+        }, 0);
     }, []);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent, blockId: string) => {
         if (e.key === '/') {
-            const rect = (e.target as HTMLElement).getBoundingClientRect();
-            setSlashMenuPosition({ x: rect.left, y: rect.bottom });
-            setShowSlashMenu(true);
-            setSlashMenuBlockId(blockId);
+            // 获取当前块的内容
+            const blocksArray = ydoc.getArray<string>('blocksArray');
+            const blocksData = ydoc.getMap<Y.Map<string>>('blocksData');
+            let currentBlockContent = '';
+            
+            blocksArray.forEach((blockMap) => {
+                if (blocksData.get(blockMap)?.get('id') === blockId) {
+                    currentBlockContent = blocksData.get(blockMap)?.get('content') || '';
+                }
+            });
+
+            // 只有当块为空时才显示斜杠菜单
+            if (!currentBlockContent.trim()) {
+                const rect = (e.target as HTMLElement).getBoundingClientRect();
+                setSlashMenuPosition({ x: rect.left, y: rect.bottom });
+                setShowSlashMenu(true);
+                setSlashMenuBlockId(blockId);
+            }
+        } else if (e.key === 'Escape') {
+            setShowSlashMenu(false);
+            setSlashMenuBlockId(null);
         } else if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            // const newBlock: BlockData = { id: uuidv4(), type: 'paragraph', content: '' };
-            // setBlocks(blocks => {
-            //     const index = blocks.findIndex(block => block.id === blockId);
-            //     return [...blocks.slice(0, index + 1), newBlock, ...blocks.slice(index + 1)];
-            // });
             const blocksArray = ydoc.getArray<string>('blocksArray');
             const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
             const newBlockMap=new Y.Map<string>();
@@ -143,22 +212,24 @@ export function Editor() {
             newBlockMap.set('id',id) ;
             newBlockMap.set('content', '');
             newBlockMap.set('type', 'paragraph');
-            // 查找目标 block 的位置
+            
             let targetIndex = -1;
             blocksArray.forEach((blockMap, index) => {
-            if (blockMap === blockId) {
-                targetIndex = index;
-            }
-        });
+                if (blockMap === blockId) {
+                    targetIndex = index;
+                }
+            });
 
-        // 如果找到了目标 block，就插入新的 block
-        if (targetIndex !== -1) {
-            blocksData.set(id, newBlockMap);
-            blocksArray.insert(targetIndex + 1, [id]); // 在目标块后面插入
-           
-        } else {
-            console.log("Block with id " + blockId + " not found.");
-        }
+            if (targetIndex !== -1) {
+                blocksData.set(id, newBlockMap);
+                blocksArray.insert(targetIndex + 1, [id]);
+                // 在创建新块后立即设置焦点
+                setTimeout(() => {
+                    setSelectedBlockId(id);
+                }, 0);
+            } else {
+                console.log("Block with id " + blockId + " not found.");
+            }
         } else if (e.key === 'Backspace' && (e.target as HTMLElement).textContent === '') {
             e.preventDefault();
             deleteBlock(blockId);
@@ -194,16 +265,19 @@ export function Editor() {
             const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
             blocksArray.forEach((blockMap,index) => {
                 if (blockMap === slashMenuBlockId) {
-                    blocksData.get(blockMap)!.set('type',type);
+                    // 先清除内容（删除斜杠）
+                    blocksData.get(blockMap)!.set('content', '');
+                    // 设置新的类型
+                    blocksData.get(blockMap)!.set('type', type);
                     blocksArray.delete(index,1);
                     blocksArray.insert(index,[blockMap]);
+                    
+                    // 在类型改变后，设置焦点到这个块
+                    setTimeout(() => {
+                        setSelectedBlockId(slashMenuBlockId);
+                    }, 0);
                 }
-            })
-            // setBlocks(blocks => blocks.map(block =>
-            //     block.id === slashMenuBlockId
-            //         ? { ...block, type, content: '' }
-            //         : block
-            // ));
+            });
         } else {
             addBlock(type);
         }
@@ -287,6 +361,10 @@ export function Editor() {
                         onToggleType={toggleBlockType}
                         index={index}
                         moveBlock={moveBlock}
+                        awareness={awareness}
+                        userId={userId.current}
+                        selectedBlockId={selectedBlockId}
+                        placeholder={index === 0 ? "输入标题..." : "按下 / 开始创作"}
                     />
                 ))}
                 <Button
