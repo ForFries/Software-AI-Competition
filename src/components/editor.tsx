@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { Button } from "@/components/ui/button"
 import { Plus } from 'lucide-react'
 import * as Y from 'yjs';
-import { WebsocketProvider } from 'y-websocket'
+import { SimpleStompProvider } from '@/lib/simple-stomp-provider'
 interface BlockData {
     id: string;
     type: string;
@@ -34,27 +34,23 @@ export function Editor() {
     const [showSlashMenu, setShowSlashMenu] = useState<boolean>(false);
     const [slashMenuBlockId, setSlashMenuBlockId] = useState<string | null>(null);
     const [slashMenuPosition, setSlashMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-    const [provider, setProvider] = useState<WebsocketProvider | null>(null);
+    const [provider, setProvider] = useState<SimpleStompProvider | null>(null);
     const [awareness, setAwareness] = useState<any>(null);
     const userId = useRef(uuidv4()); // 为每个用户生成唯一ID
 
     useEffect(() => {
-        const wsProvider = new WebsocketProvider('ws://localhost:1234', 'my-room', ydoc);
-        const awareness = wsProvider.awareness;
+        // 创建新的 SimpleStompProvider
+        const stompProvider = new SimpleStompProvider(
+            'ws://forfries.com:8887/ws',  // 你的 STOMP 服务器地址
+            '1234567',            // 页面 ID
+            ydoc
+        );
         
-        setProvider(wsProvider);
-        setAwareness(awareness);
+        setProvider(stompProvider);
 
-        // 初始化本地用户状态
-        awareness.setLocalState({
-            user: {
-                id: userId.current,
-                cursor: null
-            }
-        });
-
+        // 清理函数
         return () => {
-            wsProvider.destroy();
+            stompProvider.destroy();
             ydoc.destroy();
         };
     }, [ydoc]);
@@ -77,7 +73,11 @@ export function Editor() {
     useEffect(() => {
         const blocksArray = ydoc.getArray<string>('blocksArray');
         const blocksData: Y.Map<Y.Map<string>> = ydoc.getMap<Y.Map<string>>('blocksData');
-        const provider = new WebsocketProvider('ws://localhost:1234', 'my-room', ydoc); // 使用 WebSocket 连接到服务端
+        const provider = new SimpleStompProvider(
+            'ws://forfries.com:8887/ws',  // 你的 STOMP 服务器地址
+            '1234567',            // 页面 ID
+            ydoc
+        ); // 使用 WebSocket 连接到服务端
     
         // 在 WebSocket 同步完成后执行
         provider.on('sync', (isSynced:boolean) => {
