@@ -2,7 +2,6 @@ import React, {useEffect, useRef, useState} from 'react'
 import { useDrag, useDrop } from 'react-dnd'
 import { Trash2, GripVertical } from 'lucide-react'
 import { cn } from "@/lib/utils"
-
 interface BlockProps {
     id: string
     type: string
@@ -37,7 +36,24 @@ export const Block: React.FC<BlockProps> = ({
                                                 moveBlock,
                                             }) => {
     const ref = useRef<HTMLDivElement>(null)
-    const contentEditableRef = useRef<HTMLDivElement>(null)
+    const divRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        const div = divRef.current;
+        const selection = window.getSelection();
+    
+        if (div && selection && div.contains(selection.anchorNode as Node)) {
+          const range = document.createRange();
+          if (selection.anchorNode && selection.focusNode) {
+            range.setStart(selection.anchorNode, selection.anchorOffset);
+            range.setEnd(selection.focusNode, selection.focusOffset);
+            const restoredSelection = window.getSelection();
+            if (restoredSelection) {
+              restoredSelection.removeAllRanges();
+              restoredSelection.addRange(range);
+            }
+          }
+        }
+      }, []);
     const [isHovered, setIsHovered] = useState(false)
 
     const [{ isDragging }, drag, dragPreview] = useDrag({
@@ -96,7 +112,7 @@ export const Block: React.FC<BlockProps> = ({
     
             // Don't perform any move until mouse is dropped (this ensures we don't update prematurely)
         },
-        drop: (item, monitor) => {
+        drop: (item) => {
             const dragIndex = item.index
             const hoverIndex = index
             // Only perform the move when the drag has ended (mouse is dropped)
@@ -155,21 +171,21 @@ export const Block: React.FC<BlockProps> = ({
                 </div>
             )}
             
-            <div
-                ref={contentEditableRef}
+                <div
+                ref={divRef}
                 contentEditable
                 suppressContentEditableWarning
                 className={cn(
                     "min-h-[1.5em] p-1 border border-transparent focus:border-blue-300 rounded outline-none",
                     getBlockStyle()
                 )}
-                onInput={(e) => onChange(id, e.currentTarget.innerHTML || '')}
+                onInput={(e) => onChange(id, e.currentTarget.innerHTML )}
                 onFocus={() => onFocus(id)}
                 onBlur={()=>onBlur(id)}
                 onKeyDown={(e) => onKeyDown(e, id)}
+                
             >
-            {content=='Welcome to Your Notion-like Editor'&&content}
-            {content=='Start typing or use "/" for commands'&&content}
+            {content}
             </div>
                 {isHovered && (
                 <button

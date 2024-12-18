@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect,useRef} from 'react'
 import { Block } from './block'
 import { FloatingToolbar } from './toolbar'
 import { SlashCommandMenu } from './SlashCommandMenu'
@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { Button } from "@/components/ui/button"
 import { Plus } from 'lucide-react'
 import * as Y from 'yjs';
+import { WebsocketProvider } from 'y-websocket'
 interface BlockData {
     id: string;
     type: string;
@@ -30,44 +31,59 @@ export function Editor() {
     const [slashMenuPosition, setSlashMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
     useEffect(() => {
         const blocksArray = ydoc.getArray<string>('blocksArray');
-        const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
-        const initialBlocks = [
-            { id: uuidv4(), type: 'heading-1', content: 'Welcome to Your Notion-like Editor' },
-            { id: uuidv4(), type: 'paragraph', content: 'Start typing or use "/" for commands' },
-        ];
-        if(blocksArray.length!=0)
-        {
-            blocksArray.observe(event => {
+        const blocksData: Y.Map<Y.Map<string>> = ydoc.getMap<Y.Map<string>>('blocksData');
+        const provider = new WebsocketProvider('ws://localhost:1234', 'my-room', ydoc); // 使用 WebSocket 连接到服务端
+    
+        // 在 WebSocket 同步完成后执行
+        provider.on('sync', (isSynced:boolean) => {
+          if (isSynced) {
+            console.log('同步完成');
+            console.log('first '+blocksArray.length);
+            // 只有在同步完成后，才获取 blocksArray
+            blocksArray.observe(() => {
                 const newBlocks: BlockData[] = [];
-                        console.log(blocksArray.length);
-                    blocksArray.forEach((blockMap:string) => {
-                        // console.log(blocksData.get(blockMap));
-                        console.log(blocksData.get(blockMap)!.get('id')!);
-                        newBlocks.push({
-                          id: blocksData.get(blockMap)!.get('id')!,
-                          content: blocksData.get(blockMap)!.get('content')!,
-                          type: blocksData.get(blockMap)!.get('type')!,
-                        });
-                      });
-                      setBlocks(newBlocks);
-            });
-        }
-        if (blocksArray.length === 0) {
-            initialBlocks.forEach(block => {
+                blocksArray.forEach((blockId) => {
+                  const blockData = blocksData.get(blockId)!;
+                    // console.log(blockData.get('id')!)
+                    // console.log(blockData.get('type')!)
+                    // console.log(blockData.get('content')!)
+                  if (blockData) {
+                    newBlocks.push({
+                      id: blockData.get('id')!,
+                      type: blockData.get('type')!,
+                      content: blockData.get('content')!,
+                    });
+                  }
+                });
+                setBlocks(newBlocks); // 更新状态，重新渲染 UI
+              });
+            if (blocksArray.length === 0) {
+              const initialBlocks = [
+                { id: uuidv4(), type: 'heading-1', content: 'Welcome to Your Notion-like Editor' },
+                { id: uuidv4(), type: 'paragraph', content: 'Start typing or use "/" for commands' },
+              ];
+                initialBlocks.forEach((block) => {
+                const newYMap = new Y.Map<string>();
+                console.log('initial block id='+block.id);
+                newYMap.set('id', block.id);
+                newYMap.set('type', block.type);
+                newYMap.set('content', block.content);
+                blocksData.set(block.id, newYMap);
+                console.log('对0'+blocksData.get(block.id)!.get('id'));
                 blocksArray.push([block.id]);
-                // console.log(block.id);
-                const newYmap:Y.Map<string> =new Y.Map();
-                newYmap.set('id',block.id);
-                newYmap.set('type',block.type);
-                newYmap.set('content',block.content);
-                blocksData.set(block.id,newYmap);
-            });
-        }
-        //blocksArray变动时发生里面的函数
+              });
+            }
+            // 监听 blocksArray 的变化
+            
+          }
+        });
+    
+        // 清理 WebSocket 连接
         return () => {
+        //   provider.destroy();
           ydoc.destroy();
         };
-      }, []);
+      }, [ydoc]);
     // useEffect(() => {
     //     localStorage.setItem('notionLikeBlocks', JSON.stringify(blocks));
     // }, [blocks]);
@@ -79,10 +95,17 @@ export function Editor() {
         // setBlocks(blocks => blocks.map(block =>
         //     block.id === id ? { ...block, content } : block
         // ));
-        const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
-        blocksData.forEach((blockMap) => {
-          if (blockMap.get('id') === id) {
-            blockMap.set('content', content);
+        // console.log('handleBlockChange '+content);
+        // console.log('handleBlockChange '+id);
+        const blocksArray = ydoc.getArray<string>('blocksArray');
+        console.log('handleBlockChange '+blocksArray.length)
+        const blocksData:Y.Map<Y.Map<string>> = ydoc.getMap<Y.Map<string>>('blocksData');
+        blocksArray.forEach((blockMap,index) => {
+            // console.log(blocksData.get('blockMap'));
+          if (blocksData.get(blockMap)!.get('id') === id) {
+            blocksData.get(blockMap)!.set('content', content);
+            blocksArray.delete(index,1);
+            blocksArray.insert(index,[blockMap]);
           }
         });
     }, []);
@@ -115,7 +138,7 @@ export function Editor() {
             // });
             const blocksArray = ydoc.getArray<string>('blocksArray');
             const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
-            const newBlockMap: Y.Map<string> = new Y.Map();
+            const newBlockMap=new Y.Map<string>();
             const id:string=uuidv4();
             newBlockMap.set('id',id) ;
             newBlockMap.set('content', '');
@@ -136,8 +159,6 @@ export function Editor() {
         } else {
             console.log("Block with id " + blockId + " not found.");
         }
-
-
         } else if (e.key === 'Backspace' && (e.target as HTMLElement).textContent === '') {
             e.preventDefault();
             deleteBlock(blockId);
@@ -153,12 +174,15 @@ export function Editor() {
         // console.log('Updated blocks:', blocks);  // 这会打印当前的 blocks，但因为 setBlocks 是异步的，所以这里的值不会被更新
         const blocksArray = ydoc.getArray<string>('blocksArray');
         const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
-        const newBlockMap=new Y.Map<string>();
+        const newBlockMap:Y.Map<string> = new Y.Map<string>();
         const id:string = uuidv4()
-        console.log(id);
+        // console.log(id);
         newBlockMap.set('id', id);
         newBlockMap.set('content', '');
         newBlockMap.set('type', type);
+        // console.log(newBlockMap.get('id'));
+        // console.log(newBlockMap.get('content'));
+        // console.log(newBlockMap.get('type'));
         blocksData.set(id, newBlockMap);
         blocksArray.push([id]);
         
@@ -166,11 +190,20 @@ export function Editor() {
 
     const handleSlashCommand = useCallback((type: string) => {
         if (slashMenuBlockId) {
-            setBlocks(blocks => blocks.map(block =>
-                block.id === slashMenuBlockId
-                    ? { ...block, type, content: '' }
-                    : block
-            ));
+            const blocksArray = ydoc.getArray<string>('blocksArray');
+            const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
+            blocksArray.forEach((blockMap,index) => {
+                if (blockMap === slashMenuBlockId) {
+                    blocksData.get(blockMap)!.set('type',type);
+                    blocksArray.delete(index,1);
+                    blocksArray.insert(index,[blockMap]);
+                }
+            })
+            // setBlocks(blocks => blocks.map(block =>
+            //     block.id === slashMenuBlockId
+            //         ? { ...block, type, content: '' }
+            //         : block
+            // ));
         } else {
             addBlock(type);
         }
@@ -180,7 +213,6 @@ export function Editor() {
 
     const moveBlock = useCallback((dragIndex: number, hoverIndex: number) => {
         const blocksArray = ydoc.getArray<string>('blocksArray');
-        const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
         const DragBlockID:string = blocksArray.get(dragIndex);
         const HoverBlockID:string = blocksArray.get(hoverIndex);
         console.log(dragIndex,hoverIndex);
@@ -213,19 +245,31 @@ export function Editor() {
         blocksArray.forEach((blockMap, indexArray) => {
         if (blockMap === id) {
             console.log('delete success');
-            blocksData.delete(blockMap);
-            blocksArray.delete(indexArray, 1);
+            ydoc.transact(()=>{
+                blocksData.delete(blockMap);
+                blocksArray.delete(indexArray, 1);
+            })
+            
         }
         // console.log(blockMap);
     });
     }, []);
 
     const toggleBlockType = useCallback((id: string, newType: string) => {
-        setBlocks(blocks => blocks.map(block =>
-            block.id === id
-                ? { ...block, type: newType }
-                : block
-        ));
+        // setBlocks(blocks => blocks.map(block =>
+        //     block.id === id
+        //         ? { ...block, type: newType }
+        //         : block
+        // ));
+        const blocksArray = ydoc.getArray<string>('blocksArray');
+        const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
+        blocksArray.forEach((blockMap,index) => {
+            if (blockMap === id) {
+                blocksData.get(blockMap)!.set('type',newType);
+                blocksArray.delete(index,1);
+                blocksArray.insert(index,[blockMap]);
+            }
+        })
     }, []);
 
     return (
