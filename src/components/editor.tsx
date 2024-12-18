@@ -35,9 +35,27 @@ export function Editor() {
             { id: uuidv4(), type: 'heading-1', content: 'Welcome to Your Notion-like Editor' },
             { id: uuidv4(), type: 'paragraph', content: 'Start typing or use "/" for commands' },
         ];
+        if(blocksArray.length!=0)
+        {
+            blocksArray.observe(event => {
+                const newBlocks: BlockData[] = [];
+                        console.log(blocksArray.length);
+                    blocksArray.forEach((blockMap:string) => {
+                        // console.log(blocksData.get(blockMap));
+                        console.log(blocksData.get(blockMap)!.get('id')!);
+                        newBlocks.push({
+                          id: blocksData.get(blockMap)!.get('id')!,
+                          content: blocksData.get(blockMap)!.get('content')!,
+                          type: blocksData.get(blockMap)!.get('type')!,
+                        });
+                      });
+                      setBlocks(newBlocks);
+            });
+        }
         if (blocksArray.length === 0) {
             initialBlocks.forEach(block => {
                 blocksArray.push([block.id]);
+                // console.log(block.id);
                 const newYmap:Y.Map<string> =new Y.Map();
                 newYmap.set('id',block.id);
                 newYmap.set('type',block.type);
@@ -45,17 +63,6 @@ export function Editor() {
                 blocksData.set(block.id,newYmap);
             });
         }
-        blocksArray.observe(event => {
-            const newBlocks: BlockData[] = [];
-            blocksArray.forEach((blockMap) => {
-            newBlocks.push({
-              id: blocksData.get(blockMap)!.get('id')!,
-              content: blocksData.get(blockMap)!.get('content')!,
-              type: blocksData.get(blockMap)!.get('type')!,
-            });
-          });
-          setBlocks(newBlocks);
-        });
         //blocksArray变动时发生里面的函数
         return () => {
           ydoc.destroy();
@@ -109,7 +116,8 @@ export function Editor() {
             const blocksArray = ydoc.getArray<string>('blocksArray');
             const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
             const newBlockMap: Y.Map<string> = new Y.Map();
-            newBlockMap.set('id', uuidv4());
+            const id:string=uuidv4();
+            newBlockMap.set('id',id) ;
             newBlockMap.set('content', '');
             newBlockMap.set('type', 'paragraph');
             // 查找目标 block 的位置
@@ -122,8 +130,9 @@ export function Editor() {
 
         // 如果找到了目标 block，就插入新的 block
         if (targetIndex !== -1) {
-            blocksArray.insert(targetIndex + 1, [newBlockMap.get('id')!]); // 在目标块后面插入
-            blocksData.set(newBlockMap.get('id')!, newBlockMap);
+            blocksData.set(id, newBlockMap);
+            blocksArray.insert(targetIndex + 1, [id]); // 在目标块后面插入
+           
         } else {
             console.log("Block with id " + blockId + " not found.");
         }
@@ -144,12 +153,15 @@ export function Editor() {
         // console.log('Updated blocks:', blocks);  // 这会打印当前的 blocks，但因为 setBlocks 是异步的，所以这里的值不会被更新
         const blocksArray = ydoc.getArray<string>('blocksArray');
         const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
-        const newBlockMap: Y.Map<string> = new Y.Map();
-        newBlockMap.set('id', uuidv4());
+        const newBlockMap=new Y.Map<string>();
+        const id:string = uuidv4()
+        console.log(id);
+        newBlockMap.set('id', id);
         newBlockMap.set('content', '');
         newBlockMap.set('type', type);
-        blocksArray.push([newBlockMap.get('id')!]);
-        blocksData.set(newBlockMap.get('id')!, newBlockMap);
+        blocksData.set(id, newBlockMap);
+        blocksArray.push([id]);
+        
     }, []); 
 
     const handleSlashCommand = useCallback((type: string) => {
@@ -168,24 +180,43 @@ export function Editor() {
 
     const moveBlock = useCallback((dragIndex: number, hoverIndex: number) => {
         const blocksArray = ydoc.getArray<string>('blocksArray');
-        const DragBlockID:string = blocksArray.get(dragIndex).toString();
-        const HoverBlockID:string = blocksArray.get(hoverIndex).toString();
-        dragIndex ===0? blocksArray.unshift([DragBlockID]): blocksArray.insert(dragIndex-1,[DragBlockID]);
-        hoverIndex ===0? blocksArray.unshift([HoverBlockID]): blocksArray.insert(hoverIndex-1,[HoverBlockID]);
+        const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
+        const DragBlockID:string = blocksArray.get(dragIndex);
+        const HoverBlockID:string = blocksArray.get(hoverIndex);
+        console.log(dragIndex,hoverIndex);
+        // blocksArray.unobserve(event => {
+        //     const newBlocks: BlockData[] = [];
+        //             console.log(blocksArray.length);
+        //         blocksArray.forEach((blockMap:string) => {
+        //             // console.log(blocksData.get(blockMap));
+        //             console.log(blocksData.get(blockMap)!.get('id')!);
+        //             newBlocks.push({
+        //               id: blocksData.get(blockMap)!.get('id')!,
+        //               content: blocksData.get(blockMap)!.get('content')!,
+        //               type: blocksData.get(blockMap)!.get('type')!,
+        //             });
+        //           });
+        //           setBlocks(newBlocks);
+        // });
+        ydoc.transact(()=>{
+            hoverIndex ===blocksArray.length? blocksArray.push([DragBlockID.toString()]): blocksArray.insert(hoverIndex+1,[DragBlockID.toString()]);
+            blocksArray.delete(hoverIndex,1);
+            dragIndex ===blocksArray.length? blocksArray.unshift([HoverBlockID.toString()]): blocksArray.insert(dragIndex+1,[HoverBlockID.toString()]);
+            blocksArray.delete(dragIndex,1);
+        }) 
+        
     }, []);
-    
-
     const deleteBlock = useCallback((id: string) => {
-        console.log(id);
+        // console.log(id);
         const blocksArray = ydoc.getArray<string>('blocksArray');
         const blocksData:Y.Map<Y.Map<string>> = ydoc.getMap<Y.Map<string>>('blocksData');
         blocksArray.forEach((blockMap, indexArray) => {
         if (blockMap === id) {
             console.log('delete success');
-            blocksArray.delete(indexArray, 1);
             blocksData.delete(blockMap);
+            blocksArray.delete(indexArray, 1);
         }
-        console.log(blockMap);
+        // console.log(blockMap);
     });
     }, []);
 
