@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { PlusCircle, Search, ChevronDown, ChevronRight, File, Folder, Settings, Trash } from 'lucide-react'
+import { PlusCircle, Search, ChevronDown, ChevronRight, File, Folder, Settings, Trash, Link } from 'lucide-react'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -9,7 +9,13 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export function Sidebar() {
+interface SidebarProps {
+    onNewPage: () => void;
+    onConnectClick: () => void;
+    currentPageId: string | null;
+}
+
+export function Sidebar({ onNewPage, onConnectClick, currentPageId }: SidebarProps) {
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
 
     const toggleFolder = (folderId: string) => {
@@ -85,16 +91,28 @@ export function Sidebar() {
     return (
         <div className="w-64 h-full bg-background border-r flex flex-col">
             <div className="p-4 flex-shrink-0">
-                <Button className="w-full justify-start mb-4">
-                    <PlusCircle className="mr-2 h-4 w-4" /> New Page
-                </Button>
-                <div className="relative">
+                <div className="space-y-2">
+                    <Button 
+                        className="w-full justify-start" 
+                        onClick={onNewPage}
+                    >
+                        <PlusCircle className="mr-2 h-4 w-4" /> New Page
+                    </Button>
+                    <Button 
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={onConnectClick}
+                    >
+                        <Link className="mr-2 h-4 w-4" /> Connect to Page
+                    </Button>
+                </div>
+                <div className="relative mt-4">
                     <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input className="pl-8" placeholder="Search" />
                 </div>
             </div>
             <div className="mt-4 flex-grow overflow-y-auto">
-                {dummyData.map(item => renderItem(item))}
+                {currentPageId && dummyData.map(item => renderItem(item))}
             </div>
             <div className="p-4 border-t flex-shrink-0">
                 <Button variant="outline" className="w-full justify-start">

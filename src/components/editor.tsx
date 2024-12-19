@@ -21,15 +21,14 @@ interface CursorState {
   userId: string;
 }
 
-export function Editor() {
-    const [blocks, setBlocks] = useState<BlockData[]>(() => {
-        // const savedBlocks = localStorage.getItem('notionLikeBlocks');
-        return  [
-            { id: uuidv4(), type: 'heading-1', content: 'Welcome to Your Notion-like Editor' },
-            { id: uuidv4(), type: 'paragraph', content: 'Start typing or use "/" for commands' },
-        ];
-    });
+interface EditorProps {
+    pageId: string;
+}
+
+export function Editor({ pageId }: EditorProps) {
+    const [blocks, setBlocks] = useState<BlockData[]>([]);
     const [ydoc] = useState(() => new Y.Doc());
+    const [isLoading, setIsLoading] = useState(true);
     const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
     const [showSlashMenu, setShowSlashMenu] = useState<boolean>(false);
     const [slashMenuBlockId, setSlashMenuBlockId] = useState<string | null>(null);
@@ -37,23 +36,6 @@ export function Editor() {
     const [provider, setProvider] = useState<SimpleStompProvider | null>(null);
     const [awareness, setAwareness] = useState<any>(null);
     const userId = useRef(uuidv4()); // 为每个用户生成唯一ID
-
-    useEffect(() => {
-        // 创建新的 SimpleStompProvider
-        const stompProvider = new SimpleStompProvider(
-            'ws://forfries.com:8887/ws',  // 你的 STOMP 服务器地址
-            '1234567',            // 页面 ID
-            ydoc
-        );
-        
-        setProvider(stompProvider);
-
-        // 清理函数
-        return () => {
-            stompProvider.destroy();
-            ydoc.destroy();
-        };
-    }, [ydoc]);
 
     // 添加一个处理光标更新的函数
     const handleCursorChange = useCallback((blockId: string, offset: number) => {
@@ -71,64 +53,60 @@ export function Editor() {
     }, [awareness]);
 
     useEffect(() => {
+        setIsLoading(true);
         const blocksArray = ydoc.getArray<string>('blocksArray');
         const blocksData: Y.Map<Y.Map<string>> = ydoc.getMap<Y.Map<string>>('blocksData');
         const provider = new SimpleStompProvider(
-            'ws://forfries.com:8887/ws',  // 你的 STOMP 服务器地址
-            '1234567',            // 页面 ID
+            'ws://forfries.com:8887/ws',
+            pageId,
             ydoc
-        ); // 使用 WebSocket 连接到服务端
+        );
     
-        // 在 WebSocket 同步完成后执行
-        provider.on('sync', (isSynced:boolean) => {
-          if (isSynced) {
-            console.log('同步完成');
-            console.log('first '+blocksArray.length);
-            // 只有在同步完成后，才获取 blocksArray
-            blocksArray.observe(() => {
-                const newBlocks: BlockData[] = [];
-                blocksArray.forEach((blockId) => {
-                  const blockData = blocksData.get(blockId)!;
-                    // console.log(blockData.get('id')!)
-                    // console.log(blockData.get('type')!)
-                    // console.log(blockData.get('content')!)
-                  if (blockData) {
-                    newBlocks.push({
-                      id: blockData.get('id')!,
-                      type: blockData.get('type')!,
-                      content: blockData.get('content')!,
+        let initialized = false;
+
+        provider.on('sync', (isSynced: boolean) => {
+            if (isSynced && !initialized) {
+                initialized = true;
+                console.log('同步完成，当前blocks数量：', blocksArray.length);
+
+                // 设置观察者来监听变化
+                blocksArray.observe(() => {
+                    const newBlocks: BlockData[] = [];
+                    blocksArray.forEach((blockId) => {
+                        const blockData = blocksData.get(blockId);
+                        if (blockData) {
+                            newBlocks.push({
+                                id: blockData.get('id')!,
+                                type: blockData.get('type')!,
+                                content: blockData.get('content')!,
+                            });
+                        }
                     });
-                  }
+                    setBlocks(newBlocks);
                 });
-                setBlocks(newBlocks); // 更新状态，重新渲染 UI
-              });
-            if (blocksArray.length === 0) {
-              const initialBlocks = [
-                { id: uuidv4(), type: 'heading-1', content: 'Welcome to Your Notion-like Editor' },
-                { id: uuidv4(), type: 'paragraph', content: 'Start typing or use "/" for commands' },
-              ];
-                initialBlocks.forEach((block) => {
-                const newYMap = new Y.Map<string>();
-                console.log('initial block id='+block.id);
-                newYMap.set('id', block.id);
-                newYMap.set('type', block.type);
-                newYMap.set('content', block.content);
-                blocksData.set(block.id, newYMap);
-                console.log('对0'+blocksData.get(block.id)!.get('id'));
-                blocksArray.push([block.id]);
-              });
+
+                // 如果已经有内容，直接触发一次更新
+                const existingBlocks: BlockData[] = [];
+                blocksArray.forEach((blockId) => {
+                    const blockData = blocksData.get(blockId);
+                    if (blockData) {
+                        existingBlocks.push({
+                            id: blockData.get('id')!,
+                            type: blockData.get('type')!,
+                            content: blockData.get('content')!,
+                        });
+                    }
+                });
+                setBlocks(existingBlocks);
+                setIsLoading(false);
             }
-            // 监听 blocksArray 的变化
-            
-          }
         });
-    
-        // 清理 WebSocket 连接
+
         return () => {
-        //   provider.destroy();
-          ydoc.destroy();
+            provider.destroy();
+            ydoc.destroy();
         };
-      }, [ydoc]);
+    }, [pageId]);
     // useEffect(() => {
     //     localStorage.setItem('notionLikeBlocks', JSON.stringify(blocks));
     // }, [blocks]);
@@ -137,21 +115,21 @@ export function Editor() {
     // }, [blocks]);
     //处理内容content改变的函数
     const handleBlockChange = useCallback((id: string, content: string) => {
-        // setBlocks(blocks => blocks.map(block =>
-        //     block.id === id ? { ...block, content } : block
-        // ));
-        // console.log('handleBlockChange '+content);
-        // console.log('handleBlockChange '+id);
         const blocksArray = ydoc.getArray<string>('blocksArray');
         console.log('handleBlockChange '+blocksArray.length)
         const blocksData:Y.Map<Y.Map<string>> = ydoc.getMap<Y.Map<string>>('blocksData');
-        blocksArray.forEach((blockMap,index) => {
-            // console.log(blocksData.get('blockMap'));
-          if (blocksData.get(blockMap)!.get('id') === id) {
-            blocksData.get(blockMap)!.set('content', content);
-            blocksArray.delete(index,1);
-            blocksArray.insert(index,[blockMap]);
-          }
+        
+        // 将所有操作包装在一个事务中
+        ydoc.transact(() => {
+            blocksArray.forEach((blockMap,index) => {
+                if (blocksData.get(blockMap)!.get('id') === id) {
+                    // 1. 更新内容
+                    blocksData.get(blockMap)!.set('content', content);
+                    // 2. 删除并重新插入以触发更新
+                    blocksArray.delete(index,1);
+                    blocksArray.insert(index,[blockMap]);
+                }
+            });
         });
     }, []);
     
@@ -263,21 +241,26 @@ export function Editor() {
         if (slashMenuBlockId) {
             const blocksArray = ydoc.getArray<string>('blocksArray');
             const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
-            blocksArray.forEach((blockMap,index) => {
-                if (blockMap === slashMenuBlockId) {
-                    // 先清除内容（删除斜杠）
-                    blocksData.get(blockMap)!.set('content', '');
-                    // 设置新的类型
-                    blocksData.get(blockMap)!.set('type', type);
-                    blocksArray.delete(index,1);
-                    blocksArray.insert(index,[blockMap]);
-                    
-                    // 在类型改变后，设置焦点到这个块
-                    setTimeout(() => {
-                        setSelectedBlockId(slashMenuBlockId);
-                    }, 0);
-                }
+            
+            // 将所有操作包装在一个事务中
+            ydoc.transact(() => {
+                blocksArray.forEach((blockMap,index) => {
+                    if (blockMap === slashMenuBlockId) {
+                        // 1. 清除内容
+                        blocksData.get(blockMap)!.set('content', '');
+                        // 2. 设置新类型
+                        blocksData.get(blockMap)!.set('type', type);
+                        // 3. 删除并重新插入以触发更新
+                        blocksArray.delete(index,1);
+                        blocksArray.insert(index,[blockMap]);
+                    }
+                });
             });
+            
+            // 设置焦点（这个操作不需要包含在事务中，因为它只影响本地UI）
+            setTimeout(() => {
+                setSelectedBlockId(slashMenuBlockId);
+            }, 0);
         } else {
             addBlock(type);
         }
@@ -330,67 +313,77 @@ export function Editor() {
     }, []);
 
     const toggleBlockType = useCallback((id: string, newType: string) => {
-        // setBlocks(blocks => blocks.map(block =>
-        //     block.id === id
-        //         ? { ...block, type: newType }
-        //         : block
-        // ));
         const blocksArray = ydoc.getArray<string>('blocksArray');
         const blocksData:Y.Map<Y.Map<string>>=ydoc.getMap<Y.Map<string>>('blocksData');
-        blocksArray.forEach((blockMap,index) => {
-            if (blockMap === id) {
-                blocksData.get(blockMap)!.set('type',newType);
-                blocksArray.delete(index,1);
-                blocksArray.insert(index,[blockMap]);
-            }
-        })
+        
+        // 将所有操作包装在一个事务中
+        ydoc.transact(() => {
+            blocksArray.forEach((blockMap,index) => {
+                if (blockMap === id) {
+                    // 1. 更新类型
+                    blocksData.get(blockMap)!.set('type',newType);
+                    // 2. 删除并重新插入以触发更新
+                    blocksArray.delete(index,1);
+                    blocksArray.insert(index,[blockMap]);
+                }
+            });
+        });
     }, []);
 
     return (
         <DndProvider backend={HTML5Backend} options={{ enableMouseEvents: true }}>
             <div className="w-full max-w-4xl mx-auto p-4 bg-white min-h-screen">
-                {blocks.map((block, index) => (
-                    <Block
-                        key={block.id}
-                        {...block}
-                        onChange={handleBlockChange}
-                        onFocus={handleBlockFocus}
-                        onBlur={handleBlockBlur}
-                        onKeyDown={handleKeyDown}
-                        onDelete={deleteBlock}
-                        onToggleType={toggleBlockType}
-                        index={index}
-                        moveBlock={moveBlock}
-                        awareness={awareness}
-                        userId={userId.current}
-                        selectedBlockId={selectedBlockId}
-                        placeholder={index === 0 ? "输入标题..." : "按下 / 开始创作"}
-                    />
-                ))}
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-4 text-gray-500 hover:text-gray-700"
-                    onClick={() => addBlock('paragraph')}
-                >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add a block
-                </Button>
-                {selectedBlockId && (
-                    <FloatingToolbar
-                        blockId={selectedBlockId}
-                        onToggleType={(type) => toggleBlockType(selectedBlockId, type)}
-                    />
-                )}
-                {showSlashMenu && (
-                    <SlashCommandMenu
-                        position={slashMenuPosition}
-                        onSelect={handleSlashCommand}
-                        onClose={() => {
-                            setShowSlashMenu(false);
-                            setSlashMenuBlockId(null);
-                        }}
-                    />
+                {isLoading ? (
+                    <div className="flex items-center justify-center h-[200px]">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                        <span className="ml-3 text-muted-foreground">正在连接到页面...</span>
+                    </div>
+                ) : (
+                    <>
+                        {blocks.map((block, index) => (
+                            <Block
+                                key={block.id}
+                                {...block}
+                                onChange={handleBlockChange}
+                                onFocus={handleBlockFocus}
+                                onBlur={handleBlockBlur}
+                                onKeyDown={handleKeyDown}
+                                onDelete={deleteBlock}
+                                onToggleType={toggleBlockType}
+                                index={index}
+                                moveBlock={moveBlock}
+                                awareness={awareness}
+                                userId={userId.current}
+                                selectedBlockId={selectedBlockId}
+                                placeholder={index === 0 ? "输入标题..." : "按下 / 开始创作"}
+                            />
+                        ))}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="mt-4 text-gray-500 hover:text-gray-700"
+                            onClick={() => addBlock('paragraph')}
+                        >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add a block
+                        </Button>
+                        {selectedBlockId && (
+                            <FloatingToolbar
+                                blockId={selectedBlockId}
+                                onToggleType={(type) => toggleBlockType(selectedBlockId, type)}
+                            />
+                        )}
+                        {showSlashMenu && (
+                            <SlashCommandMenu
+                                position={slashMenuPosition}
+                                onSelect={handleSlashCommand}
+                                onClose={() => {
+                                    setShowSlashMenu(false);
+                                    setSlashMenuBlockId(null);
+                                }}
+                            />
+                        )}
+                    </>
                 )}
             </div>
         </DndProvider>

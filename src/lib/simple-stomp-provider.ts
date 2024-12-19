@@ -23,17 +23,17 @@ export class SimpleStompProvider {
         });
 
         this.stompClient.onConnect = () => {
-            console.log('STOMP Connected');
+            console.log(`STOMP Connected to page ${this.pageId}`);
 
             this.stompClient.subscribe(`/topic/page/${this.pageId}`, message => {
+                console.log(`Received update for page ${this.pageId}:`, message);
                 const data = JSON.parse(message.body);
                 if (data.clientId !== this.doc.clientID) {
                     const update = new Uint8Array(data.update);
-                    Y.applyUpdate(this.doc, update, this);
+                    Y.applyUpdate(this.doc, update, 'remote');
                 }
             });
 
-            // 连接成功后触发 sync 事件
             this.synced = true;
             this.emit('sync', true);
         };
@@ -44,7 +44,8 @@ export class SimpleStompProvider {
         };
 
         this.doc.on('update', (update: Uint8Array, origin: any) => {
-            if (this.stompClient.connected && origin !== this) {
+            if (this.stompClient.connected && origin !== 'remote') {
+                console.log('发送了某更新'+update);
                 this.stompClient.publish({
                     destination: `/app/page/${this.pageId}`,
                     body: JSON.stringify({
