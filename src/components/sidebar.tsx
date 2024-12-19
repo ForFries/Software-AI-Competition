@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { PlusCircle, Search, ChevronDown, ChevronRight, File, Folder, Settings, Trash, Link } from 'lucide-react'
+import { PlusCircle, Search, ChevronDown, ChevronRight, File, Folder, Settings, Trash, Link, MessageCircle } from 'lucide-react'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -13,9 +13,12 @@ interface SidebarProps {
     onNewPage: () => void;
     onConnectClick: () => void;
     currentPageId: string | null;
+    onWeChatLogin: () => void;
+    isLoggedIn: boolean;
+    onLogout: () => void;
 }
 
-export function Sidebar({ onNewPage, onConnectClick, currentPageId }: SidebarProps) {
+export function Sidebar({ onNewPage, onConnectClick, currentPageId, onWeChatLogin, isLoggedIn, onLogout }: SidebarProps) {
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
 
     const toggleFolder = (folderId: string) => {
@@ -91,21 +94,30 @@ export function Sidebar({ onNewPage, onConnectClick, currentPageId }: SidebarPro
     return (
         <div className="w-64 h-full bg-background border-r flex flex-col">
             <div className="p-4 flex-shrink-0">
-                <div className="space-y-2">
-                    <Button 
-                        className="w-full justify-start" 
-                        onClick={onNewPage}
-                    >
-                        <PlusCircle className="mr-2 h-4 w-4" /> New Page
-                    </Button>
-                    <Button 
-                        variant="outline"
+                {isLoggedIn ? (
+                    <div className="space-y-2">
+                        <Button 
+                            className="w-full justify-start" 
+                            onClick={onNewPage}
+                        >
+                            <PlusCircle className="mr-2 h-4 w-4" /> New Page
+                        </Button>
+                        <Button 
+                            variant="outline"
+                            className="w-full justify-start"
+                            onClick={onConnectClick}
+                        >
+                            <Link className="mr-2 h-4 w-4" /> Connect to Page
+                        </Button>
+                    </div>
+                ) : (
+                    <Button
                         className="w-full justify-start"
-                        onClick={onConnectClick}
+                        onClick={onWeChatLogin}
                     >
-                        <Link className="mr-2 h-4 w-4" /> Connect to Page
+                        <MessageCircle className="mr-2 h-4 w-4" /> 微信登录
                     </Button>
-                </div>
+                )}
                 <div className="relative mt-4">
                     <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input className="pl-8" placeholder="Search" />
@@ -115,9 +127,19 @@ export function Sidebar({ onNewPage, onConnectClick, currentPageId }: SidebarPro
                 {currentPageId && dummyData.map(item => renderItem(item))}
             </div>
             <div className="p-4 border-t flex-shrink-0">
-                <Button variant="outline" className="w-full justify-start">
-                    <Settings className="mr-2 h-4 w-4" /> Settings
-                </Button>
+                {isLoggedIn ? (
+                    <Button 
+                        variant="outline" 
+                        className="w-full justify-start"
+                        onClick={onLogout}
+                    >
+                        <Settings className="mr-2 h-4 w-4" /> 退出登录
+                    </Button>
+                ) : (
+                    <Button variant="outline" className="w-full justify-start">
+                        <Settings className="mr-2 h-4 w-4" /> Settings
+                    </Button>
+                )}
             </div>
         </div>
     )

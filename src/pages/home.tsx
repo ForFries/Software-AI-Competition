@@ -1,13 +1,23 @@
 import { Sidebar } from "@/components/sidebar"
 import { Editor } from "@/components/editor"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 
 export default function Home() {
     const [pageId, setPageId] = useState<string | null>(null);
     const [showConnectModal, setShowConnectModal] = useState(false);
+    const [userOpenId, setUserOpenId] = useState<string | null>(null);
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        // 从 localStorage 获取登录状态
+        const savedOpenId = localStorage.getItem('userOpenId');
+        if (savedOpenId) {
+            setUserOpenId(savedOpenId);
+        }
+    }, []);
 
     const handleNewPage = () => {
-        // 生成一个6位数的随机页面ID
         const newPageId = Math.floor(100000 + Math.random() * 900000).toString();
         setPageId(newPageId);
     };
@@ -17,12 +27,24 @@ export default function Home() {
         setShowConnectModal(false);
     };
 
+    const handleWeChatLogin = () => {
+        navigate('/login');
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('userOpenId');
+        setUserOpenId(null);
+    };
+
     return (
         <div className="flex h-[calc(100vh-4rem)]">
             <Sidebar 
                 onNewPage={handleNewPage}
                 onConnectClick={() => setShowConnectModal(true)}
                 currentPageId={pageId}
+                onWeChatLogin={handleWeChatLogin}
+                isLoggedIn={!!userOpenId}
+                onLogout={handleLogout}
             />
             <main className="flex-1 overflow-y-auto p-6">
                 {pageId ? (

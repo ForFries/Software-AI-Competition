@@ -132,3 +132,20 @@ body {
     margin: 2rem 0;
 }
 
+/* 选择框的样式 */
+.selecto-selection {
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 0;
+}
+
+/* 禁用文本选择，避免与框选冲突 */
+[data-block-id] {
+    user-select: none;
+}
+
+/* 允许编辑区域的文本选择 */
+[contenteditable="true"] {
+    user-select: text;
+}
+

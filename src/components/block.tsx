@@ -18,6 +18,8 @@ interface BlockProps {
     userId: string;
     selectedBlockId: string | null;
     placeholder?: string;
+    isSelected: boolean;
+    onSelect: (id: string, e: MouseEvent) => void;
 }
 
 interface DragItem {
@@ -42,6 +44,8 @@ export const Block: React.FC<BlockProps> = ({
                                                 userId,
                                                 selectedBlockId,
                                                 placeholder = "按下 / 开始创作",
+                                                isSelected,
+                                                onSelect,
                                             }) => {
     const ref = useRef<HTMLDivElement>(null)
     const divRef = useRef<HTMLDivElement | null>(null);
@@ -303,12 +307,15 @@ export const Block: React.FC<BlockProps> = ({
         <div
             ref={ref}
             className="group relative pl-8"
+            onClick={(e) => onSelect(id, e.nativeEvent)}
+            data-block-id={id}
         >
             <div
                 className={cn(
                     "relative mb-1 transition-all duration-100",
                     isOver && "border-t-2 border-blue-500",
-                    isDragging && "opacity-50"
+                    isDragging && "opacity-50",
+                    isSelected && "bg-blue-100 dark:bg-blue-900/30",
                 )}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}

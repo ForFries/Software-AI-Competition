@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Plus } from 'lucide-react'
 import * as Y from 'yjs';
 import { SimpleStompProvider } from '@/lib/simple-stomp-provider'
+import Selecto from "react-selecto";
+
 interface BlockData {
     id: string;
     type: string;
@@ -36,6 +38,7 @@ export function Editor({ pageId }: EditorProps) {
     const [provider, setProvider] = useState<SimpleStompProvider | null>(null);
     const [awareness, setAwareness] = useState<any>(null);
     const userId = useRef(uuidv4()); // 为每个用户生成唯一ID
+    const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());
 
     // 添加一个处理光标更新的函数
     const handleCursorChange = useCallback((blockId: string, offset: number) => {
@@ -270,31 +273,47 @@ export function Editor({ pageId }: EditorProps) {
 
     const moveBlock = useCallback((dragIndex: number, hoverIndex: number) => {
         const blocksArray = ydoc.getArray<string>('blocksArray');
-        const DragBlockID:string = blocksArray.get(dragIndex);
-        const HoverBlockID:string = blocksArray.get(hoverIndex);
-        console.log(dragIndex,hoverIndex);
-        // blocksArray.unobserve(event => {
-        //     const newBlocks: BlockData[] = [];
-        //             console.log(blocksArray.length);
-        //         blocksArray.forEach((blockMap:string) => {
-        //             // console.log(blocksData.get(blockMap));
-        //             console.log(blocksData.get(blockMap)!.get('id')!);
-        //             newBlocks.push({
-        //               id: blocksData.get(blockMap)!.get('id')!,
-        //               content: blocksData.get(blockMap)!.get('content')!,
-        //               type: blocksData.get(blockMap)!.get('type')!,
-        //             });
-        //           });
-        //           setBlocks(newBlocks);
-        // });
-        ydoc.transact(()=>{
-            hoverIndex ===blocksArray.length? blocksArray.push([DragBlockID.toString()]): blocksArray.insert(hoverIndex+1,[DragBlockID.toString()]);
-            blocksArray.delete(hoverIndex,1);
-            dragIndex ===blocksArray.length? blocksArray.unshift([HoverBlockID.toString()]): blocksArray.insert(dragIndex+1,[HoverBlockID.toString()]);
-            blocksArray.delete(dragIndex,1);
-        }) 
         
-    }, []);
+        // 如果拖动的块在选中集合中
+        if (selectedBlocks.has(blocksArray.get(dragIndex))) {
+            // 获取所有选中块的索引
+            const selectedIndices = Array.from(blocksArray)
+                .map((blockId, index) => selectedBlocks.has(blockId) ? index : -1)
+                .filter(index => index !== -1)
+                .sort((a, b) => a - b);
+
+            ydoc.transact(() => {
+                // 计算目标位置的偏移量
+                const offset = hoverIndex - dragIndex;
+                const targetIndex = Math.min(Math.max(0, hoverIndex), blocksArray.length - selectedIndices.length);
+
+                // 先删除所有选中的块，并保存它们的ID
+                const selectedBlockIds = selectedIndices.map(index => blocksArray.get(index));
+                // 从后往前删除，这样不会影响前面的索引
+                for (let i = selectedIndices.length - 1; i >= 0; i--) {
+                    blocksArray.delete(selectedIndices[i], 1);
+                }
+
+                // 在目标位置插入所有选中的块
+                blocksArray.insert(targetIndex, selectedBlockIds);
+            });
+        } else {
+            // 如果拖动的块不在选中集合中，保持原有的单块移动逻辑
+            const DragBlockID = blocksArray.get(dragIndex);
+            const HoverBlockID = blocksArray.get(hoverIndex);
+            
+            ydoc.transact(() => {
+                hoverIndex === blocksArray.length 
+                    ? blocksArray.push([DragBlockID.toString()]) 
+                    : blocksArray.insert(hoverIndex + 1, [DragBlockID.toString()]);
+                blocksArray.delete(hoverIndex, 1);
+                dragIndex === blocksArray.length 
+                    ? blocksArray.unshift([HoverBlockID.toString()]) 
+                    : blocksArray.insert(dragIndex + 1, [HoverBlockID.toString()]);
+                blocksArray.delete(dragIndex, 1);
+            });
+        }
+    }, [selectedBlocks]);
     const deleteBlock = useCallback((id: string) => {
         // console.log(id);
         const blocksArray = ydoc.getArray<string>('blocksArray');
@@ -330,9 +349,47 @@ export function Editor({ pageId }: EditorProps) {
         });
     }, []);
 
+    // 处理单击选择
+    const handleBlockSelect = useCallback((blockId: string, e: MouseEvent) => {
+        if (e.ctrlKey || e.metaKey) {
+            // Ctrl/Cmd + 点击实现多选
+            setSelectedBlocks(prev => {
+                const newSelection = new Set(prev);
+                if (newSelection.has(blockId)) {
+                    newSelection.delete(blockId);
+                } else {
+                    newSelection.add(blockId);
+                }
+                return newSelection;
+            });
+        } else {
+            // 普通点击只选择当前块
+            setSelectedBlocks(new Set([blockId]));
+        }
+    }, []);
+
+    // 处理拖拽选择
+    const handleDragSelect = useCallback((e: any) => {
+        const selected = e.selected.map((el: HTMLElement) => 
+            el.getAttribute('data-block-id')
+        ).filter(Boolean);
+        
+        if (e.inputEvent.ctrlKey || e.inputEvent.metaKey) {
+            // Ctrl/Cmd + 拖拽实现添加选择
+            setSelectedBlocks(prev => {
+                const newSelection = new Set(prev);
+                selected.forEach(id => newSelection.add(id));
+                return newSelection;
+            });
+        } else {
+            // 普通拖拽替换选择
+            setSelectedBlocks(new Set(selected));
+        }
+    }, []);
+
     return (
         <DndProvider backend={HTML5Backend} options={{ enableMouseEvents: true }}>
-            <div className="w-full max-w-4xl mx-auto p-4 bg-white min-h-screen">
+            <div className="w-full max-w-4xl mx-auto p-4 bg-white min-h-screen relative">
                 {isLoading ? (
                     <div className="flex items-center justify-center h-[200px]">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -340,24 +397,48 @@ export function Editor({ pageId }: EditorProps) {
                     </div>
                 ) : (
                     <>
-                        {blocks.map((block, index) => (
-                            <Block
-                                key={block.id}
-                                {...block}
-                                onChange={handleBlockChange}
-                                onFocus={handleBlockFocus}
-                                onBlur={handleBlockBlur}
-                                onKeyDown={handleKeyDown}
-                                onDelete={deleteBlock}
-                                onToggleType={toggleBlockType}
-                                index={index}
-                                moveBlock={moveBlock}
-                                awareness={awareness}
-                                userId={userId.current}
-                                selectedBlockId={selectedBlockId}
-                                placeholder={index === 0 ? "输入标题..." : "按下 / 开始创作"}
-                            />
-                        ))}
+                        <div className="relative">
+                            {blocks.map((block, index) => (
+                                <Block
+                                    key={block.id}
+                                    {...block}
+                                    onChange={handleBlockChange}
+                                    onFocus={handleBlockFocus}
+                                    onBlur={handleBlockBlur}
+                                    onKeyDown={handleKeyDown}
+                                    onDelete={deleteBlock}
+                                    onToggleType={toggleBlockType}
+                                    index={index}
+                                    moveBlock={moveBlock}
+                                    awareness={awareness}
+                                    userId={userId.current}
+                                    selectedBlockId={selectedBlockId}
+                                    isSelected={selectedBlocks.has(block.id)}
+                                    onSelect={handleBlockSelect}
+                                    placeholder={index === 0 ? "输入标题..." : "按下 / 开始创作"}
+                                />
+                            ))}
+                        </div>
+
+                        <Selecto
+                            dragContainer={".relative"}
+                            selectableTargets={["[data-block-id]"]}
+                            hitRate={0}
+                            selectByClick={false}
+                            selectFromInside={false}
+                            toggleContinueSelect={["shift"]}
+                            ratio={0}
+                            onSelect={handleDragSelect}
+                            style={{
+                                position: "fixed",
+                                zIndex: 999,
+                            }}
+                            selectBoxStyle={{
+                                background: "rgba(59, 130, 246, 0.1)",
+                                border: "1px solid rgba(59, 130, 246, 0.3)",
+                            }}
+                        />
+
                         <Button
                             variant="ghost"
                             size="sm"
